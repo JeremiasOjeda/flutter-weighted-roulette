@@ -13,7 +13,7 @@ class RouletteApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Custom Draw Roulette',
+      title: 'Flutter Weighted Roulette',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: AppPalette.background,

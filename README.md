@@ -1,4 +1,6 @@
-# Custom Draw Roulette (Flutter)
+# flutter-weighted-roulette
+
+Proyecto extraído de un repo más grande: aquí solo vive la ruleta. En Dart el paquete se llama `flutter_weighted_roulette` (los guiones del nombre del repo no son válidos en `pubspec.yaml`).
 
 Ruleta de sorteos interactiva para **web** y otras plataformas soportadas por Flutter. Permite añadir participantes, ajustar **pesos relativos** (mayor peso = más probabilidad de salir) y girar la ruleta con animación. Incluye modo **equipos** (2–4 equipos) con reparto equilibrado por número de miembros.
 

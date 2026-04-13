@@ -1,4 +1,4 @@
-name: custom_draw_roulette
+name: flutter_weighted_roulette
 description: "Ruleta de sorteos interactiva con sistema de pesos y animaciones fluidas."
 publish_to: 'none'
 version: 1.0.0+1
