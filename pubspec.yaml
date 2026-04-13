@@ -1,0 +1,21 @@
+name: custom_draw_roulette
+description: "Ruleta de sorteos interactiva con sistema de pesos y animaciones fluidas."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^8.0.2
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
