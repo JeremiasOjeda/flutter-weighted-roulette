@@ -39,10 +39,4 @@ flutter build web
 | `lib/widgets/` | Ruleta, paneles de control y overlay del ganador. |
 | `web/` | Plantilla HTML y manifest para la compilación web. |
 
-## Licencia y autor
 
-Proyecto de demostración. En la app hay un enlace público al sitio del autor (`soyjere.com`) con fines de atribución; no se usan claves API ni backends en este repositorio.
-
-## Nota para quien clone el repo
-
-No incluyas la carpeta `build/` en Git: son artefactos de compilación (incluidos archivos `.dill` muy grandes) y GitHub avisa si superan ~50 MB. Este proyecto incluye `.gitignore` para ignorarlos.
