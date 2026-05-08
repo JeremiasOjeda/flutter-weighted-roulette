@@ -60,11 +60,16 @@ class TeamManager {
     }
   }
 
-  /// Assigns participant to the team with fewest members (balanced).
-  Team assignToSmallest(Participant participant) {
+  /// Team that would receive the next assignment (balanced), without mutating.
+  Team peekSmallestTeam() {
     final sorted = List<Team>.from(_teams)
       ..sort((a, b) => a.memberCount.compareTo(b.memberCount));
-    final target = sorted.first;
+    return sorted.first;
+  }
+
+  /// Assigns participant to the team with fewest members (balanced).
+  Team assignToSmallest(Participant participant) {
+    final target = peekSmallestTeam();
     target.members.add(participant);
     return target;
   }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../models/participant.dart';
 import '../theme/app_palette.dart';
@@ -73,13 +75,17 @@ class _WinnerOverlayState extends State<WinnerOverlay>
   Widget build(BuildContext context) {
     final team = widget.assignedTeam;
     final themeColor = _isTeamMode && team != null ? team.color : AppPalette.cyan;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final horizontalMargin = math.max(12.0, math.min(32.0, screenW * 0.06));
+    final maxCardW =
+        math.min(380.0, screenW - horizontalMargin * 2);
 
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Material(
         type: MaterialType.transparency,
         child: Container(
-          color: Colors.black.withValues(alpha: 0.7),
+          color: Colors.black.withValues(alpha: 0.42),
           child: Center(
             child: ScaleTransition(
               scale: _scaleAnimation,
@@ -87,9 +93,12 @@ class _WinnerOverlayState extends State<WinnerOverlay>
                 animation: _pulseAnimation,
                 builder: (context, child) {
                   return Container(
-                    margin: const EdgeInsets.all(32),
-                    padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
-                    constraints: const BoxConstraints(maxWidth: 380),
+                    margin: EdgeInsets.all(horizontalMargin),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: math.min(36.0, screenW * 0.07),
+                      vertical: 24,
+                    ),
+                    constraints: BoxConstraints(maxWidth: maxCardW),
                     decoration: BoxDecoration(
                       color: AppPalette.surface,
                       borderRadius: BorderRadius.circular(20),
@@ -108,123 +117,134 @@ class _WinnerOverlayState extends State<WinnerOverlay>
                     child: child,
                   );
                 },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _isTeamMode ? '🏆' : '🎉',
-                      style: const TextStyle(fontSize: 48),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _isTeamMode ? 'SELECCIONADO' : '¡GANADOR!',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppPalette.muted,
-                        letterSpacing: 2,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _isTeamMode ? '🏆' : '🎉',
+                        style: TextStyle(fontSize: screenW < 360 ? 40 : 48),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    ShaderMask(
-                      shaderCallback: (bounds) => LinearGradient(
-                        colors: _isTeamMode && team != null
-                            ? [
-                                team.color,
-                                team.color.withValues(alpha: 0.7),
-                              ]
-                            : [
-                                AppPalette.cyan,
-                                AppPalette.blue,
-                              ],
-                      ).createShader(bounds),
-                      child: Text(
-                        widget.winnerName,
-                        textAlign: TextAlign.center,
+                      const SizedBox(height: 12),
+                      Text(
+                        _isTeamMode ? 'SELECCIONADO' : '¡GANADOR!',
                         style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          height: 1.2,
-                          shadows: [
-                            Shadow(
-                              color: Colors.white54,
-                              blurRadius: 10,
-                            ),
-                          ],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppPalette.muted,
+                          letterSpacing: 2,
                         ),
                       ),
-                    ),
-                    if (_isTeamMode && team != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(50),
-                          color: team.color.withValues(alpha: 0.12),
-                          border: Border.all(
-                            color: team.color.withValues(alpha: 0.3),
+                      const SizedBox(height: 8),
+                      ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          colors: _isTeamMode && team != null
+                              ? [
+                                  team.color,
+                                  team.color.withValues(alpha: 0.7),
+                                ]
+                              : [
+                                  AppPalette.cyan,
+                                  AppPalette.blue,
+                                ],
+                        ).createShader(bounds),
+                        child: Text(
+                          widget.winnerName,
+                          textAlign: TextAlign.center,
+                          softWrap: true,
+                          style: TextStyle(
+                            fontSize: math.min(32.0, screenW * 0.09),
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            height: 1.2,
+                            shadows: const [
+                              Shadow(
+                                color: Colors.white54,
+                                blurRadius: 10,
+                              ),
+                            ],
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              color: team.color,
-                              size: 16,
+                      ),
+                      if (_isTeamMode && team != null) ...[
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              team.name,
-                              style: TextStyle(
-                                color: team.color,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(50),
+                              color: team.color.withValues(alpha: 0.12),
+                              border: Border.all(
+                                color: team.color.withValues(alpha: 0.3),
                               ),
                             ),
-                          ],
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: team.color,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    team.name,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 2,
+                                    style: TextStyle(
+                                      color: team.color,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                    const SizedBox(height: 28),
-                    SizedBox(
-                      width: double.infinity,
-                      child: _NeonButton(
-                        label: _isTeamMode ? 'Continuar' : 'Descartar y continuar',
-                        color: themeColor,
-                        onPressed: widget.onPrimary,
-                      ),
-                    ),
-                    if (!_isTeamMode) ...[
-                      const SizedBox(height: 10),
+                      ],
+                      const SizedBox(height: 28),
                       SizedBox(
                         width: double.infinity,
-                        child: TextButton(
-                          onPressed: widget.onClose,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.07),
+                        child: _NeonButton(
+                          label: _isTeamMode
+                              ? 'Continuar'
+                              : 'Descartar y continuar',
+                          color: themeColor,
+                          onPressed: widget.onPrimary,
+                        ),
+                      ),
+                      if (!_isTeamMode) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: widget.onClose,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.07),
+                                ),
+                              ),
+                            ),
+                            child: const Text(
+                              'Cerrar',
+                              style: TextStyle(
+                                color: AppPalette.muted,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
-                          child: const Text(
-                            'Cerrar',
-                            style: TextStyle(
-                              color: AppPalette.muted,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -274,13 +294,19 @@ class _NeonButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: AppPalette.background,
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-            letterSpacing: 0.5,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppPalette.background,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              letterSpacing: 0.5,
+              height: 1.15,
+            ),
           ),
         ),
       ),

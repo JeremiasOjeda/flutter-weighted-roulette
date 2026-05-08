@@ -15,6 +15,12 @@ class ControlPanel extends StatefulWidget {
   final VoidCallback onChanged;
   final ValueChanged<AppMode> onModeChanged;
   final ValueChanged<int> onTeamCountChanged;
+  final VoidCallback onSpinAll;
+
+  /// When true, the participant list shrink-wraps and never scrolls
+  /// internally. Use this when the panel is placed inside an outer
+  /// scroll view (mobile layout).
+  final bool embedInScroll;
 
   const ControlPanel({
     super.key,
@@ -29,6 +35,8 @@ class ControlPanel extends StatefulWidget {
     required this.onChanged,
     required this.onModeChanged,
     required this.onTeamCountChanged,
+    required this.onSpinAll,
+    this.embedInScroll = false,
   });
 
   @override
@@ -38,6 +46,43 @@ class ControlPanel extends StatefulWidget {
 class _ControlPanelState extends State<ControlPanel> {
   final _nameController = TextEditingController();
   final _focusNode = FocusNode();
+
+  Future<void> _confirmSpinAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppPalette.surface,
+        title: const Text(
+          'Sortear todos',
+          style: TextStyle(color: AppPalette.text),
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Esto asignara todos los participantes restantes a equipos al azar. Continuar?',
+            style: TextStyle(color: AppPalette.muted),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppPalette.blue,
+              foregroundColor: AppPalette.background,
+            ),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      widget.onSpinAll();
+    }
+  }
 
   void _addParticipant() {
     final name = _nameController.text.trim();
@@ -62,6 +107,59 @@ class _ControlPanelState extends State<ControlPanel> {
     final hasDiscarded = participants.any((p) => p.isDiscarded);
     final isTeams = widget.mode == AppMode.teams;
 
+    final spinActionsBlock = Padding(
+      padding:
+          EdgeInsets.fromLTRB(16, 0, 16, widget.embedInScroll ? 12 : 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (hasDiscarded && !isTeams) ...[
+            TextButton.icon(
+              onPressed: widget.isSpinning ? null : widget.onRestoreAll,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Restaurar descartados'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppPalette.muted,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+          _SpinButton(
+            canSpin: manager.canSpin && !widget.isSpinning,
+            isSpinning: widget.isSpinning,
+            label: isTeams ? '🎲  Sortear' : '🎰  Girar',
+            onPressed: widget.onSpin,
+          ),
+          if (isTeams && manager.activeCount > 0) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: widget.isSpinning ? null : _confirmSpinAll,
+              icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+              label: const Text('Sortear todos'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppPalette.cyan,
+                side: BorderSide(
+                  color: AppPalette.cyan.withValues(alpha: 0.4),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 8,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: AppPalette.surface,
@@ -70,6 +168,8 @@ class _ControlPanelState extends State<ControlPanel> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize:
+            widget.embedInScroll ? MainAxisSize.min : MainAxisSize.max,
         children: [
           // Mode toggle
           Padding(
@@ -94,17 +194,22 @@ class _ControlPanelState extends State<ControlPanel> {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
             child: Row(
               children: [
-                Text(
-                  isTeams ? 'Participantes pendientes' : 'Participantes',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppPalette.text,
+                Flexible(
+                  child: Text(
+                    isTeams ? 'Participantes pendientes' : 'Participantes',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppPalette.text,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(50),
                     color: AppPalette.cyan.withValues(alpha: 0.1),
@@ -181,70 +286,59 @@ class _ControlPanelState extends State<ControlPanel> {
             ),
           ),
           const SizedBox(height: 12),
-          // Participant list
-          Expanded(
-            child: participants.isEmpty
-                ? Center(
-                    child: Text(
-                      isTeams
-                          ? 'Agrega participantes para armar equipos'
-                          : 'Agrega al menos 1 participante',
-                      style: const TextStyle(
-                        color: AppPalette.muted,
-                        fontSize: 13,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: participants.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final p = participants[index];
-                      return _ParticipantTile(
-                        participant: p,
-                        index: index,
-                        color: kWheelColors[index % kWheelColors.length],
-                        isSpinning: widget.isSpinning,
-                        showWeights: !isTeams,
-                        onRemove: () => widget.onRemove(index),
-                        onWeightChanged: (w) =>
-                            widget.onWeightChanged(index, w),
-                      );
-                    },
-                  ),
-          ),
-          // Bottom actions
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (hasDiscarded && !isTeams) ...[
-                  TextButton.icon(
-                    onPressed: widget.isSpinning ? null : widget.onRestoreAll,
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: const Text('Restaurar descartados'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppPalette.muted,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                ],
-                _SpinButton(
-                  canSpin: manager.canSpin && !widget.isSpinning,
-                  isSpinning: widget.isSpinning,
-                  label: isTeams ? '🎲  Sortear' : '🎰  Girar',
-                  onPressed: widget.onSpin,
-                ),
-              ],
-            ),
-          ),
+          if (widget.embedInScroll) spinActionsBlock,
+          _buildParticipantList(participants, isTeams),
+          if (!widget.embedInScroll) spinActionsBlock,
         ],
       ),
     );
+  }
+
+  Widget _buildParticipantList(List<Participant> participants, bool isTeams) {
+    if (participants.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Center(
+          child: Text(
+            isTeams
+                ? 'Agrega participantes para armar equipos'
+                : 'Agrega al menos 1 participante',
+            style: const TextStyle(
+              color: AppPalette.muted,
+              fontSize: 13,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    final list = ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: participants.length,
+      shrinkWrap: widget.embedInScroll,
+      physics: widget.embedInScroll
+          ? const NeverScrollableScrollPhysics()
+          : null,
+      separatorBuilder: (_, _) => const SizedBox(height: 6),
+      itemBuilder: (context, index) {
+        final p = participants[index];
+        return _ParticipantTile(
+          participant: p,
+          index: index,
+          color: kWheelColors[index % kWheelColors.length],
+          isSpinning: widget.isSpinning,
+          showWeights: !isTeams,
+          onRemove: () => widget.onRemove(index),
+          onWeightChanged: (w) => widget.onWeightChanged(index, w),
+        );
+      },
+    );
+
+    if (widget.embedInScroll) {
+      return list;
+    }
+    return Expanded(child: list);
   }
 }
 
@@ -362,7 +456,10 @@ class _TeamCountSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 10,
+      runSpacing: 8,
       children: [
         const Text(
           'Equipos:',
@@ -372,14 +469,12 @@ class _TeamCountSelector extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(width: 10),
         for (int i = 2; i <= 4; i++) ...[
           _CountChip(
             value: i,
             isSelected: count == i,
             onTap: enabled ? () => onChanged(i) : null,
           ),
-          if (i < 4) const SizedBox(width: 6),
         ],
       ],
     );
@@ -492,25 +587,41 @@ class _ParticipantTile extends StatelessWidget {
                   ),
                 ),
                 if (!discarded && showWeights)
-                  Text(
-                    '${participant.weight.toStringAsFixed(1)}%',
-                    style: TextStyle(
-                      color: color.withValues(alpha: 0.8),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: SizedBox(
+                      width: 46,
+                      child: Text(
+                        '${participant.weight.toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          color: color.withValues(alpha: 0.8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.end,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 const SizedBox(width: 4),
                 if (!isSpinning)
                   SizedBox(
-                    width: 28,
-                    height: 28,
+                    width: 36,
+                    height: 36,
                     child: IconButton(
                       padding: EdgeInsets.zero,
-                      iconSize: 16,
+                      iconSize: 18,
+                      tooltip: 'Eliminar',
                       icon: Icon(
                         Icons.close_rounded,
-                        color: AppPalette.muted.withValues(alpha: 0.6),
+                        color: AppPalette.muted.withValues(alpha: 0.7),
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor:
+                            AppPalette.surface.withValues(alpha: 0.4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                       onPressed: onRemove,
                     ),
@@ -585,17 +696,21 @@ class _SpinButton extends StatelessWidget {
             backgroundColor: Colors.transparent,
             disabledBackgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: Text(
-            isSpinning ? 'Girando...' : label,
-            style: TextStyle(
-              color: canSpin ? AppPalette.background : AppPalette.muted,
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              isSpinning ? 'Girando...' : label,
+              maxLines: 1,
+              style: TextStyle(
+                color: canSpin ? AppPalette.background : AppPalette.muted,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
             ),
           ),
         ),

@@ -21,6 +21,9 @@ class _RoulettePageState extends State<RoulettePage>
   final _teamManager = TeamManager();
   final _random = math.Random();
 
+  /// Scroll solo en layout mobile (lista + ruleta).
+  final _mobileScrollController = ScrollController();
+
   late final AnimationController _spinController;
   late final Animation<double> _spinAnimation;
 
@@ -69,8 +72,22 @@ class _RoulettePageState extends State<RoulettePage>
 
   @override
   void dispose() {
+    _mobileScrollController.dispose();
     _spinController.dispose();
     super.dispose();
+  }
+
+  void _scrollWheelToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_mobileScrollController.hasClients) {
+        _mobileScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 380),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
   }
 
   void _spin() {
@@ -107,29 +124,54 @@ class _RoulettePageState extends State<RoulettePage>
     _lastAssignedTeam = null;
 
     setState(() => _isSpinning = true);
+    _scrollWheelToTop();
     _spinController.reset();
     _spinController.forward();
   }
 
   void _onSpinComplete() {
     if (_winnerIndex == null) return;
-    final winner = _manager.all[_winnerIndex!];
 
     if (_mode == AppMode.teams) {
-      final team = _teamManager.assignToSmallest(
-        Participant(name: winner.name),
-      );
-      _lastAssignedTeam = team;
-      _manager.discard(_winnerIndex!);
+      _lastAssignedTeam = _teamManager.peekSmallestTeam();
       setState(() {});
     }
 
     _showResultOverlay();
   }
 
+  void _spinAll() {
+    if (_mode != AppMode.teams || _isSpinning || _manager.activeCount == 0) {
+      return;
+    }
+
+    final remainingIndexes =
+        _manager.all
+            .asMap()
+            .entries
+            .where((entry) => !entry.value.isDiscarded)
+            .map((entry) => entry.key)
+            .toList()
+          ..shuffle(_random);
+
+    for (final index in remainingIndexes) {
+      final participant = _manager.all[index];
+      _teamManager.assignToSmallest(Participant(name: participant.name));
+      _manager.discard(index);
+    }
+
+    setState(() {
+      _winnerIndex = null;
+      _lastAssignedTeam = null;
+    });
+    _scrollWheelToTop();
+  }
+
   void _showResultOverlay() {
     if (_winnerIndex == null) return;
     final winner = _manager.all[_winnerIndex!];
+
+    _scrollWheelToTop();
 
     showDialog(
       context: context,
@@ -147,12 +189,23 @@ class _RoulettePageState extends State<RoulettePage>
               _winnerIndex = null;
             });
           } else {
-            setState(() => _winnerIndex = null);
+            final idx = _winnerIndex;
+            if (idx == null) return;
+            final w = _manager.all[idx];
+            setState(() {
+              _teamManager.assignToSmallest(Participant(name: w.name));
+              _manager.discard(idx);
+              _winnerIndex = null;
+              _lastAssignedTeam = null;
+            });
           }
         },
         onClose: () {
           Navigator.of(context).pop();
-          setState(() => _winnerIndex = null);
+          setState(() {
+            _winnerIndex = null;
+            _lastAssignedTeam = null;
+          });
         },
       ),
     );
@@ -203,60 +256,66 @@ class _RoulettePageState extends State<RoulettePage>
 
     showDialog<void>(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: AppPalette.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Como usar la ruleta',
-                style: TextStyle(
-                  color: AppPalette.text,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '1) Agrega participantes.\n'
-                '2) Elige modo Solo o Equipos.\n'
-                '3) Presiona Girar/Sortear para seleccionar ganador.\n'
-                '4) En modo Solo, puedes descartar ganadores y continuar.',
-                style: TextStyle(
-                  color: AppPalette.muted,
-                  height: 1.5,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppPalette.cyan,
-                    foregroundColor: AppPalette.background,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+      builder: (context) {
+        final maxH = MediaQuery.sizeOf(context).height * 0.88;
+        return Dialog(
+          backgroundColor: AppPalette.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH, maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Como usar la ruleta',
+                    style: TextStyle(
+                      color: AppPalette.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  child: const Text(
-                    'Entendido',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  const SizedBox(height: 10),
+                  const Text(
+                    '1) Agrega participantes.\n'
+                    '2) Elige modo Solo o Equipos.\n'
+                    '3) Presiona Girar/Sortear para seleccionar ganador.\n'
+                    '4) En modo Solo, puedes descartar ganadores y continuar.',
+                    style: TextStyle(
+                      color: AppPalette.muted,
+                      height: 1.5,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppPalette.cyan,
+                        foregroundColor: AppPalette.background,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Entendido',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     ).whenComplete(() {
       _isHelpVisible = false;
     });
@@ -265,6 +324,7 @@ class _RoulettePageState extends State<RoulettePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
@@ -274,21 +334,32 @@ class _RoulettePageState extends State<RoulettePage>
               decoration: BoxDecoration(
                 color: AppPalette.background,
                 border: Border(
-                  bottom: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+                  bottom: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.07),
+                  ),
                 ),
               ),
               child: Row(
                 children: [
-                  TextButton.icon(
-                    onPressed: _openMainSite,
-                    icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                    label: const Text('soyjere.com'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppPalette.cyan,
-                      textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _openMainSite,
+                        icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                        label: Text(
+                          'soyjere.com',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppPalette.cyan,
+                          alignment: Alignment.centerLeft,
+                        ),
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   IconButton(
                     onPressed: _showHelpModal,
                     tooltip: 'Como funciona',
@@ -305,54 +376,75 @@ class _RoulettePageState extends State<RoulettePage>
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 700;
 
-            final wheelWidget = Padding(
-              padding: EdgeInsets.all(isWide ? 24 : 8),
-              child: RouletteWheel(
-                participants: _manager.active,
-                normalizedWeights: _manager.normalizedWeights,
-                rotationAngle: _currentAngle,
-              ),
-            );
+                  final wheelWidget = Padding(
+                    padding: EdgeInsets.all(isWide ? 24 : 8),
+                    child: RouletteWheel(
+                      participants: _manager.active,
+                      normalizedWeights: _manager.normalizedWeights,
+                      rotationAngle: _currentAngle,
+                    ),
+                  );
 
-            final panelWidget = ControlPanel(
-              manager: _manager,
-              mode: _mode,
-              teamCount: _teamCount,
-              isSpinning: _isSpinning,
-              onSpin: _spin,
-              onRestoreAll: _handleRestoreAll,
-              onRemove: _handleRemove,
-              onWeightChanged: _handleWeightChanged,
-              onChanged: () => setState(() {}),
-              onModeChanged: _handleModeChanged,
-              onTeamCountChanged: _handleTeamCountChanged,
-            );
+                  final panelWidget = ControlPanel(
+                    manager: _manager,
+                    mode: _mode,
+                    teamCount: _teamCount,
+                    isSpinning: _isSpinning,
+                    onSpin: _spin,
+                    onSpinAll: _spinAll,
+                    onRestoreAll: _handleRestoreAll,
+                    onRemove: _handleRemove,
+                    onWeightChanged: _handleWeightChanged,
+                    onChanged: () => setState(() {}),
+                    onModeChanged: _handleModeChanged,
+                    onTeamCountChanged: _handleTeamCountChanged,
+                    embedInScroll: !isWide,
+                  );
 
-            final showTeamPanel =
-                _mode == AppMode.teams && _teamManager.totalMembers > 0;
+                  final showTeamPanel =
+                      _mode == AppMode.teams && _teamManager.totalMembers > 0;
+                  final canCopyTeamsList =
+                      _mode == AppMode.teams &&
+                      _manager.activeCount == 0 &&
+                      _teamManager.totalMembers > 0;
 
                   if (isWide) {
+                    final wheelHeight = math.max(260.0, constraints.maxHeight * 0.6);
+                    final sideW = math.min(
+                      380.0,
+                      math.max(280.0, constraints.maxWidth * 0.34),
+                    );
+
                     return Row(
                       children: [
                         Expanded(
                           flex: 3,
-                          child: Column(
-                            children: [
-                              Expanded(child: wheelWidget),
-                              if (showTeamPanel)
-                                SizedBox(
-                                  height: 200,
-                                  child: Padding(
-                                    padding:
-                                        const EdgeInsets.fromLTRB(16, 0, 8, 16),
-                                    child: TeamPanel(teamManager: _teamManager),
+                          child: SingleChildScrollView(
+                            padding: EdgeInsets.only(
+                              bottom: 16 + MediaQuery.viewInsetsOf(context).bottom,
+                            ),
+                            child: Column(
+                              children: [
+                                SizedBox(height: wheelHeight, child: wheelWidget),
+                                if (showTeamPanel)
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      0,
+                                      8,
+                                      0,
+                                    ),
+                                    child: TeamPanel(
+                                      teamManager: _teamManager,
+                                      canCopyList: canCopyTeamsList,
+                                    ),
                                   ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                         SizedBox(
-                          width: 360,
+                          width: sideW,
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
                             child: panelWidget,
@@ -362,28 +454,59 @@ class _RoulettePageState extends State<RoulettePage>
                     );
                   }
 
-                  return Column(
-                    children: [
-                      Expanded(
-                        flex: showTeamPanel ? 3 : 5,
-                        child: wheelWidget,
-                      ),
-                      if (showTeamPanel)
-                        SizedBox(
-                          height: 130,
+                  // Mobile: un solo scroll; ruleta cuadrada; panel con altura natural
+                  const horizontalPad = 16.0;
+                  const maxWheelSide = 320.0;
+                  final usableW = math.max(
+                    0.0,
+                    constraints.maxWidth - horizontalPad * 2,
+                  );
+                  final wheelSide = math.min(usableW, maxWheelSide).clamp(
+                    120.0,
+                    maxWheelSide,
+                  );
+
+                  return SingleChildScrollView(
+                    controller: _mobileScrollController,
+                    padding: EdgeInsets.only(
+                      bottom: 24 + MediaQuery.viewInsetsOf(context).bottom,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                            child: TeamPanel(teamManager: _teamManager),
+                            padding: const EdgeInsets.fromLTRB(
+                              horizontalPad,
+                              8,
+                              horizontalPad,
+                              8,
+                            ),
+                            child: SizedBox(
+                              width: wheelSide,
+                              height: wheelSide,
+                              child: RouletteWheel(
+                                participants: _manager.active,
+                                normalizedWeights: _manager.normalizedWeights,
+                                rotationAngle: _currentAngle,
+                              ),
+                            ),
                           ),
                         ),
-                      Expanded(
-                        flex: showTeamPanel ? 4 : 5,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        if (showTeamPanel)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: TeamPanel(
+                              teamManager: _teamManager,
+                              canCopyList: canCopyTeamsList,
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                           child: panelWidget,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   );
                 },
               ),

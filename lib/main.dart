@@ -4,6 +4,7 @@ import 'pages/roulette_page.dart';
 import 'theme/app_palette.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const RouletteApp());
 }
 
@@ -12,8 +13,10 @@ class RouletteApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final emojiFamily = GoogleFonts.notoColorEmoji().fontFamily;
+    final baseDark = ThemeData.dark().textTheme;
     return MaterialApp(
-      title: 'Flutter Weighted Roulette',
+      title: 'Custom Draw Roulette',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: AppPalette.background,
@@ -22,7 +25,11 @@ class RouletteApp extends StatelessWidget {
           primary: AppPalette.cyan,
           secondary: AppPalette.blue,
         ),
-        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
+        textTheme: GoogleFonts.interTextTheme(baseDark).apply(
+          fontFamilyFallback: emojiFamily != null
+              ? <String>[emojiFamily]
+              : const <String>['Noto Color Emoji'],
+        ),
       ),
       home: const RoulettePage(),
     );
